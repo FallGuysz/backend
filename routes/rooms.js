@@ -8,10 +8,12 @@ router.get('/', async (req, res) => {
         const [rows] = await db.query(`
             SELECT 
                 r.*,
-                COUNT(b.bed_id) as total_beds,
+                COUNT(DISTINCT b.bed_id) as total_beds,
+                COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN p.patient_id END) as patient_count,
                 SUM(CASE WHEN b.bed_status = 'occupied' THEN 1 ELSE 0 END) as occupied_beds
             FROM room r
             LEFT JOIN bed b ON r.room_id = b.room_id
+            LEFT JOIN patient p ON b.bed_id = p.bed_id AND p.patient_status = 'active'
             GROUP BY r.room_id
         `);
         res.json({

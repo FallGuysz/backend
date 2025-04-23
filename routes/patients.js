@@ -46,7 +46,7 @@ router.post('/', async (req, res) => {
             patient_blood,
             patient_img,
             patient_memo,
-            patient_medic,
+            patient_status,
             guardian_id,
             bed_id,
         } = req.body;
@@ -65,12 +65,10 @@ router.post('/', async (req, res) => {
                 patient_blood,
                 patient_img,
                 patient_memo,
-                patient_medic,
                 patient_status,
                 guardian_id,
                 bed_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 patient_name,
                 patient_birth,
@@ -79,42 +77,13 @@ router.post('/', async (req, res) => {
                 patient_blood,
                 patient_img || null,
                 patient_memo || null,
-                patient_medic || null,
-                guardian_id,
-                bed_id,
+                patient_status || '무위험군',
+                guardian_id || null,
+                bed_id || null,
             ]
         );
 
         const patientId = result.insertId;
-
-        // 약물 정보가 제공된 경우 처리
-        if (req.body.medications && Array.isArray(req.body.medications)) {
-            const medicationPromises = req.body.medications.map((med) => {
-                return db.query(
-                    `INSERT INTO patient_med (
-                        patient_id, 
-                        med_name, 
-                        med_dosage, 
-                        med_cycle, 
-                        med_start_dt, 
-                        med_end_dt, 
-                        notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-
-                    [
-                        patientId,
-                        med.med_name,
-                        med.med_dosage,
-                        med.med_cycle,
-                        med.med_start_dt,
-                        med.med_end_dt,
-                        med.notes || null,
-                    ]
-                );
-            });
-
-            await Promise.all(medicationPromises);
-        }
 
         res.status(201).json({
             code: 0,
@@ -126,7 +95,11 @@ router.post('/', async (req, res) => {
         });
     } catch (err) {
         console.error('Error adding patient:', err);
-        res.status(500).json({ code: 1, message: 'Failed to add patient', error: err.message });
+        res.status(500).json({
+            code: 1,
+            message: '환자 등록 실패',
+            error: err.message,
+        });
     }
 });
 
@@ -218,7 +191,7 @@ router.put('/:id', async (req, res) => {
                 patient_blood,
                 patient_img || null,
                 patient_memo || null,
-                patient_status || 'active',
+                patient_status || '무위험군', // 기본값을 '무위험군'으로 변경
                 guardian_id || null,
                 bed_id || null,
                 id,
