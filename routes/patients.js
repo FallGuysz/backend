@@ -1,6 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db_connect');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// 이미지 저장 경로 설정
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 파일 저장 설정
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'patient-' + uniqueSuffix + ext);
+    },
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB 제한
+});
 
 // GET /api/patients - 환자 목록 조회
 router.get('/', async (req, res) => {
@@ -35,8 +61,8 @@ router.get('/', async (req, res) => {
     }
 });
 
-// POST /patients - 환자 추가
-router.post('/', async (req, res) => {
+// POST /patients - 환자 추가 (파일 업로드 지원)
+router.post('/', upload.single('patient_img'), async (req, res) => {
     try {
         const {
             patient_name,
@@ -44,12 +70,14 @@ router.post('/', async (req, res) => {
             patient_height,
             patient_weight,
             patient_blood,
-            patient_img,
             patient_memo,
             patient_status,
             guardian_id,
             bed_id,
         } = req.body;
+
+        // 업로드된 파일이 있으면 파일 경로 저장, 없으면 null
+        const patient_img = req.file ? `/uploads/${req.file.filename}` : null;
 
         // 침대 상태 업데이트
         if (bed_id) {
@@ -75,7 +103,7 @@ router.post('/', async (req, res) => {
                 patient_height,
                 patient_weight,
                 patient_blood,
-                patient_img || null,
+                patient_img,
                 patient_memo || null,
                 patient_status || '무위험군',
                 guardian_id || null,
@@ -91,6 +119,7 @@ router.post('/', async (req, res) => {
             data: {
                 patient_id: patientId,
                 ...req.body,
+                patient_img,
             },
         });
     } catch (err) {

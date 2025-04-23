@@ -43,6 +43,7 @@ app.use('/rooms', roomsRouter); // 병실 관련 API 라우터 추가
 app.use('/fall-incidents', fallRouter); // 낙상 관련 API 라우터 추가
 app.use('/environmental', environmentalRouter); // 환경 관련 API 라우터 추가
 app.use('/weather', weatherRouter); // 날씨 관련 API 라우터 추가
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // 정적 파일 서빙 설정 추가
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
