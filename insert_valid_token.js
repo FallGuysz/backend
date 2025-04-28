@@ -4,7 +4,8 @@ async function insertValidToken() {
     try {
         // 브라우저에서 가져온 실제 FCM 토큰
         const validToken =
-            'ccOFvf0EuDMcjhAtx-KqDd:APA91bEGlsiBPRzDqFc6WTtmLhvavjUvrvg25ETrBGOmLbVWtu8R6c3LCq7jx9s4MRcitlGI3Jw2i1jZ3QjTBRXMbeBhLjq_VP19vFQNmWRh0AE3axbUzn8';
+            'ccOFvf0EuDMcjhAtx-KqDd:APA91bHBwSZyCW60Emky7TFfj9HzUDX2gdjkgWHHT7gOw4ca5gev7yV_s2szOyodPJ-soMncfDiadA_lXoWKRVmIzzfJIWW_ETH8VhNhcT9DkCd2gaB5n90';
+
         const userId = '실제_사용자';
 
         const query = `

@@ -1,9 +1,11 @@
 const admin = require('../firebaseAdmin');
 const db = require('../database/db_connect');
+const axios = require('axios');
 
 // FCM 토큰 저장 함수
-const saveToken = async (userId, token) => {
+const saveToken = async (userId, token, deviceType = 'fcm', deviceInfo = null) => {
     try {
+        // 테이블에 device_type과 device_info 컬럼이 없으므로 간소화된 쿼리 사용
         const [result] = await db.query(
             'INSERT INTO fcm_tokens (user_id, token) VALUES (?, ?) ON DUPLICATE KEY UPDATE token = ?',
             [userId, token, token]
@@ -15,28 +17,88 @@ const saveToken = async (userId, token) => {
     }
 };
 
-// 낙상 알림 전송 함수
-const sendFallAlert = async (fcmToken, roomName) => {
+// 토큰 삭제 함수
+const removeToken = async (token) => {
+    try {
+        const [result] = await db.query('DELETE FROM fcm_tokens WHERE token = ?', [token]);
+        return { success: true, result };
+    } catch (error) {
+        console.error('토큰 삭제 오류:', error);
+        return { success: false, error };
+    }
+};
+
+// 디바이스 유형에 따라 알림 전송
+const sendNotification = async (token, deviceType, title, body, data = {}) => {
+    if (deviceType === 'expo') {
+        return sendExpoNotification(token, title, body, data);
+    } else {
+        return sendFCMNotification(token, title, body, data);
+    }
+};
+
+// FCM 알림 전송 함수
+const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
     const message = {
         notification: {
-            title: '⚠️ 낙상 사고 발생',
-            body: `${roomName}호 병실에서 낙상 사고가 감지되었습니다.`,
+            title,
+            body,
         },
+        android: {
+            notification: {
+                sound: 'default',
+            },
+        },
+        apns: {
+            payload: {
+                aps: {
+                    sound: 'default',
+                },
+            },
+        },
+        data,
         token: fcmToken,
     };
 
     try {
         const response = await admin.messaging().send(message);
-        console.log('알림 전송 성공:', response);
+        console.log('FCM 알림 전송 성공:', response);
         return { success: true, response };
     } catch (error) {
-        console.error('알림 전송 실패:', error);
+        console.error('FCM 알림 전송 실패:', error);
+        return { success: false, error };
+    }
+};
+
+// Expo 알림 전송 함수
+const sendExpoNotification = async (expoToken, title, body, data = {}) => {
+    const message = {
+        to: expoToken,
+        sound: 'default',
+        title,
+        body,
+        data,
+    };
+
+    try {
+        const response = await axios.post('https://exp.host/--/api/v2/push/send', message, {
+            headers: {
+                Accept: 'application/json',
+                'Accept-encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+            },
+        });
+
+        console.log('Expo 알림 전송 성공:', response.data);
+        return { success: true, response: response.data };
+    } catch (error) {
+        console.error('Expo 알림 전송 실패:', error);
         return { success: false, error };
     }
 };
 
 // 가장 최근 낙상 사고 알림 전송
-const sendLatestAccidentAlert = async (fcmToken) => {
+const sendLatestAccidentAlert = async (token, deviceType = 'fcm') => {
     try {
         // 가장 최근 낙상 사고 정보 조회
         const [latestAccidents] = await db.query(`
@@ -67,42 +129,26 @@ const sendLatestAccidentAlert = async (fcmToken) => {
         const bedNum = latestAccident.bed_num || '알 수 없음';
         const accidentDate = new Date(latestAccident.accident_date).toLocaleString('ko-KR');
 
-        const message = {
-            notification: {
-                title: '⚠️ 최근 낙상 사고 알림',
-                body: `${roomName}호 병실 ${bedNum}번 침대 (${patientName}) - ${accidentDate}`,
-            },
-            data: {
-                accidentId: latestAccident.accident_id?.toString() || '0',
-                roomName: roomName,
-                patientName: patientName,
-                bedNum: bedNum,
-                time: accidentDate,
-                type: 'latest_accident',
-            },
-            token: fcmToken,
+        const title = '⚠️ 최근 낙상 사고 알림';
+        const body = `${roomName}호 병실 ${bedNum}번 침대 (${patientName}) - ${accidentDate}`;
+        const data = {
+            accidentId: latestAccident.accident_id?.toString() || '0',
+            roomName: roomName,
+            patientName: patientName,
+            bedNum: bedNum,
+            time: accidentDate,
+            type: 'latest_accident',
         };
 
-        try {
-            // FCM 메시지 전송 시도
-            const response = await admin.messaging().send(message);
-            console.log('최근 사고 알림 전송 성공:', response);
-            return {
-                success: true,
-                response,
-                data: latestAccident,
-            };
-        } catch (fcmError) {
-            // FCM 오류 로깅하지만 성공으로 처리 (테스트용)
-            console.error('FCM 메시징 오류 (무시됨):', fcmError.message);
-            // 실제 FCM 전송 실패해도 기능 테스트를 위해 성공으로 응답
-            return {
-                success: true,
-                // 알림 전송 실패 정보 포함
-                fcmError: fcmError.message,
-                data: latestAccident,
-            };
-        }
+        // 디바이스 유형에 따라 알림 전송
+        const result = await sendNotification(token, deviceType, title, body, data);
+
+        return {
+            success: result.success,
+            response: result.response,
+            error: result.error,
+            data: latestAccident,
+        };
     } catch (error) {
         console.error('최근 사고 알림 전송 실패:', error);
         return { success: false, error };
@@ -113,7 +159,7 @@ const sendLatestAccidentAlert = async (fcmToken) => {
 const sendLatestAccidentToAll = async () => {
     try {
         // 모든 FCM 토큰 조회
-        const [tokens] = await db.query('SELECT token FROM fcm_tokens');
+        const [tokens] = await db.query('SELECT token, device_type FROM fcm_tokens');
 
         if (!tokens || tokens.length === 0) {
             return { success: false, error: '등록된 토큰이 없습니다.' };
@@ -147,7 +193,8 @@ const sendLatestAccidentToAll = async () => {
         const results = [];
         for (const tokenObj of tokens) {
             try {
-                const result = await sendLatestAccidentAlert(tokenObj.token);
+                const deviceType = tokenObj.device_type || 'fcm';
+                const result = await sendLatestAccidentAlert(tokenObj.token, deviceType);
                 results.push(result);
             } catch (error) {
                 console.error(`토큰 ${tokenObj.token}에 알림 전송 실패:`, error);
@@ -167,4 +214,12 @@ const sendLatestAccidentToAll = async () => {
     }
 };
 
-module.exports = { saveToken, sendFallAlert, sendLatestAccidentAlert, sendLatestAccidentToAll };
+module.exports = {
+    saveToken,
+    removeToken,
+    sendNotification,
+    sendFCMNotification,
+    sendExpoNotification,
+    sendLatestAccidentAlert,
+    sendLatestAccidentToAll,
+};

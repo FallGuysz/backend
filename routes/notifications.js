@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const notificationController = require('./notificationController');
 
+// FCM 토큰 저장 (웹)
 router.post('/save-token', async (req, res) => {
     try {
-        const { token, userId } = req.body;
+        const { token, userId, deviceType = 'fcm' } = req.body;
 
         if (!token || !userId) {
             return res.status(400).json({
@@ -13,13 +14,13 @@ router.post('/save-token', async (req, res) => {
             });
         }
 
-        const result = await notificationController.saveToken(userId, token);
+        const result = await notificationController.saveToken(userId, token, deviceType);
 
         if (result.success) {
             res.json({
                 code: 0,
                 message: '토큰이 성공적으로 저장되었습니다.',
-                data: { userId, tokenSaved: true },
+                data: { userId, tokenSaved: true, deviceType },
             });
         } else {
             throw new Error(result.error);
@@ -29,6 +30,71 @@ router.post('/save-token', async (req, res) => {
         res.status(500).json({
             code: 1,
             message: '토큰 저장 실패',
+            error: err.message,
+        });
+    }
+});
+
+// 모바일 앱 토큰 등록 (Expo)
+router.post('/register-device', async (req, res) => {
+    try {
+        const { token, tokenType = 'expo', userId = 'anonymous', deviceInfo } = req.body;
+
+        if (!token) {
+            return res.status(400).json({
+                code: 1,
+                message: '토큰이 필요합니다.',
+            });
+        }
+
+        const result = await notificationController.saveToken(userId, token, tokenType, deviceInfo);
+
+        if (result.success) {
+            res.json({
+                code: 0,
+                message: '디바이스 등록 성공',
+                data: { userId, tokenSaved: true, deviceType: tokenType },
+            });
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (err) {
+        console.error('디바이스 등록 오류:', err);
+        res.status(500).json({
+            code: 1,
+            message: '디바이스 등록 실패',
+            error: err.message,
+        });
+    }
+});
+
+// 디바이스 등록 해제
+router.post('/unregister-device', async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        if (!token) {
+            return res.status(400).json({
+                code: 1,
+                message: '토큰이 필요합니다.',
+            });
+        }
+
+        const result = await notificationController.removeToken(token);
+
+        if (result.success) {
+            res.json({
+                code: 0,
+                message: '디바이스 등록 해제 성공',
+            });
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (err) {
+        console.error('디바이스 등록 해제 오류:', err);
+        res.status(500).json({
+            code: 1,
+            message: '디바이스 등록 해제 실패',
             error: err.message,
         });
     }
