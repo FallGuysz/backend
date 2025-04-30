@@ -61,36 +61,7 @@ router.post('/fall', async (req, res) => {
     }
 });
 
-// 유효하지 않은 토큰 정리 함수
-const cleanupInvalidTokens = async () => {
-    try {
-        // 유효하지 않은 토큰 가져오기
-        const [tokens] = await db.query('SELECT token FROM fcm_tokens');
-
-        for (const tokenObj of tokens) {
-            try {
-                // 테스트 메시지 보내기
-                await admin.messaging().send({
-                    token: tokenObj.token,
-                    data: { test: 'true' },
-                });
-            } catch (error) {
-                if (
-                    error.code === 'messaging/invalid-registration-token' ||
-                    error.code === 'messaging/registration-token-not-registered'
-                ) {
-                    // 유효하지 않은 토큰 삭제
-                    await db.query('DELETE FROM fcm_tokens WHERE token = ?', [tokenObj.token]);
-                    console.log(`유효하지 않은 토큰 삭제: ${tokenObj.token}`);
-                }
-            }
-        }
-    } catch (error) {
-        console.error('토큰 정리 오류:', error);
-    }
-};
-
-// 주기적으로 실행 (예: 하루에 한 번)
-setInterval(cleanupInvalidTokens, 24 * 60 * 60 * 1000);
+// 자동 토큰 정리 기능 제거됨
+// 토큰 관리는 수동으로 진행
 
 module.exports = router;

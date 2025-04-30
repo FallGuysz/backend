@@ -5,25 +5,60 @@ const notificationController = require('./notificationController');
 // FCM 토큰 저장 (웹)
 router.post('/save-token', async (req, res) => {
     try {
-        const { token, userId, deviceType = 'fcm' } = req.body;
+        const { token, userId, patientId, deviceType, userType = 'patient' } = req.body;
 
-        if (!token || !userId) {
+        if (!token) {
             return res.status(400).json({
                 code: 1,
-                message: '토큰과 사용자 ID가 필요합니다.',
+                message: '토큰이 필요합니다.',
             });
         }
 
-        const result = await notificationController.saveToken(userId, token, deviceType);
+        // 사용자 타입에 따라 다른 처리
+        if (userType === 'caregiver') {
+            // 간병사의 경우 임시로 특정 환자 ID 사용 (예: 1)
+            // TODO: 나중에 간병사-환자 매핑 테이블 만들어서 처리
+            const result = await notificationController.saveToken(1, token, deviceType);
 
-        if (result.success) {
-            res.json({
-                code: 0,
-                message: '토큰이 성공적으로 저장되었습니다.',
-                data: { userId, tokenSaved: true, deviceType },
-            });
+            if (result.success) {
+                res.json({
+                    code: 0,
+                    message: '간병사 토큰이 성공적으로 저장되었습니다.',
+                    data: { userType, tokenSaved: true, deviceType },
+                });
+            } else {
+                throw new Error(result.error);
+            }
         } else {
-            throw new Error(result.error);
+            // 환자인 경우 기존 로직 사용
+            if (!userId && !patientId) {
+                return res.status(400).json({
+                    code: 1,
+                    message: '환자 ID가 필요합니다.',
+                });
+            }
+
+            const finalPatientId = patientId || userId;
+
+            // 환자 ID가 숫자인지 확인
+            if (isNaN(finalPatientId)) {
+                return res.status(400).json({
+                    code: 1,
+                    message: '유효하지 않은 환자 ID입니다.',
+                });
+            }
+
+            const result = await notificationController.saveToken(finalPatientId, token, deviceType);
+
+            if (result.success) {
+                res.json({
+                    code: 0,
+                    message: '토큰이 성공적으로 저장되었습니다.',
+                    data: { patientId: finalPatientId, tokenSaved: true, deviceType },
+                });
+            } else {
+                throw new Error(result.error);
+            }
         }
     } catch (err) {
         console.error('토큰 저장 오류:', err);
@@ -38,7 +73,7 @@ router.post('/save-token', async (req, res) => {
 // 모바일 앱 토큰 등록 (Expo)
 router.post('/register-device', async (req, res) => {
     try {
-        const { token, tokenType = 'expo', userId = 'anonymous', deviceInfo } = req.body;
+        const { token, patientId, deviceType } = req.body;
 
         if (!token) {
             return res.status(400).json({
@@ -47,13 +82,20 @@ router.post('/register-device', async (req, res) => {
             });
         }
 
-        const result = await notificationController.saveToken(userId, token, tokenType, deviceInfo);
+        if (!patientId) {
+            return res.status(400).json({
+                code: 1,
+                message: '환자 ID가 필요합니다.',
+            });
+        }
+
+        const result = await notificationController.saveToken(patientId, token, deviceType);
 
         if (result.success) {
             res.json({
                 code: 0,
                 message: '디바이스 등록 성공',
-                data: { userId, tokenSaved: true, deviceType: tokenType },
+                data: { patientId, tokenSaved: true, deviceType },
             });
         } else {
             throw new Error(result.error);

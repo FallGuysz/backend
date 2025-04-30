@@ -31,7 +31,6 @@ const upload = multer({
 // GET /api/patients - 환자 목록 조회
 router.get('/', async (req, res) => {
     try {
-        // 환자 목록과 전체 수를 함께 조회 - 침대와 보호자 정보도 함께 조회
         const [rows, countResult] = await Promise.all([
             db.query(`
                 SELECT 
@@ -45,7 +44,6 @@ router.get('/', async (req, res) => {
                 LEFT JOIN room r ON b.room_id = r.room_id
                 LEFT JOIN guardian g ON p.guardian_id = g.guardian_id
                 WHERE p.patient_status != 'deceased'
-                
             `),
             db.query('SELECT COUNT(*) as total FROM patient WHERE patient_status != "deceased"'),
         ]);
@@ -61,7 +59,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// POST /patients - 환자 추가 (파일 업로드 지원)
+// POST /patients - 환자 추가
 router.post('/', upload.single('patient_img'), async (req, res) => {
     try {
         const {
@@ -76,10 +74,8 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
             bed_id,
         } = req.body;
 
-        // 업로드된 파일이 있으면 파일 경로 저장, 없으면 null
         const patient_img = req.file ? `/uploads/${req.file.filename}` : null;
 
-        // 침대 상태 업데이트
         if (bed_id) {
             await db.query('UPDATE bed SET bed_status = "occupied" WHERE bed_id = ?', [bed_id]);
         }
@@ -99,7 +95,7 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 patient_name,
-                patient_birth,
+                patient_birth ? patient_birth.split('T')[0] : null,
                 patient_height,
                 patient_weight,
                 patient_blood,
@@ -111,42 +107,31 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
             ]
         );
 
-        const patientId = result.insertId;
-
         res.status(201).json({
             code: 0,
             message: '환자가 성공적으로 등록되었습니다.',
             data: {
-                patient_id: patientId,
+                patient_id: result.insertId,
                 ...req.body,
                 patient_img,
             },
         });
     } catch (err) {
         console.error('Error adding patient:', err);
-        res.status(500).json({
-            code: 1,
-            message: '환자 등록 실패',
-            error: err.message,
-        });
+        res.status(500).json({ code: 1, message: '환자 등록 실패', error: err.message });
     }
 });
 
-// DELETE /api/patients/:id - 환자 삭제
+// DELETE /api/patients/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        // 환자의 침대 ID 가져오기
         const [patientResult] = await db.query('SELECT bed_id FROM patient WHERE patient_id = ?', [id]);
         const bedId = patientResult[0]?.bed_id;
 
-        // 환자 삭제 전에 약물 정보 삭제
         await db.query('DELETE FROM patient_med WHERE patient_id = ?', [id]);
-
-        // 환자 정보 삭제
         await db.query('DELETE FROM patient WHERE patient_id = ?', [id]);
 
-        // 침대 상태 업데이트
         if (bedId) {
             await db.query('UPDATE bed SET bed_status = "empty" WHERE bed_id = ?', [bedId]);
         }
@@ -158,7 +143,7 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// PUT /api/patients/:id - 환자 정보 수정
+// PUT /api/patients/:id
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const {
@@ -176,29 +161,19 @@ router.put('/:id', async (req, res) => {
     } = req.body;
 
     try {
-        // 먼저 환자가 존재하는지 확인
         const [existingPatient] = await db.query('SELECT bed_id FROM patient WHERE patient_id = ?', [id]);
 
         if (existingPatient.length === 0) {
-            return res.status(404).json({
-                code: 1,
-                message: '환자 정보를 찾을 수 없습니다.',
-            });
+            return res.status(404).json({ code: 1, message: '환자 정보를 찾을 수 없습니다.' });
         }
 
         const oldBedId = existingPatient[0].bed_id;
 
-        // 침대 변경된 경우 침대 상태 업데이트
         if (bed_id !== oldBedId) {
-            if (oldBedId) {
-                await db.query('UPDATE bed SET bed_status = "empty" WHERE bed_id = ?', [oldBedId]);
-            }
-            if (bed_id) {
-                await db.query('UPDATE bed SET bed_status = "occupied" WHERE bed_id = ?', [bed_id]);
-            }
+            if (oldBedId) await db.query('UPDATE bed SET bed_status = "empty" WHERE bed_id = ?', [oldBedId]);
+            if (bed_id) await db.query('UPDATE bed SET bed_status = "occupied" WHERE bed_id = ?', [bed_id]);
         }
 
-        // 환자 정보 업데이트 (patient_medic 필드 제거)
         await db.query(
             `UPDATE patient SET 
                 patient_name = ?,
@@ -214,25 +189,22 @@ router.put('/:id', async (req, res) => {
             WHERE patient_id = ?`,
             [
                 patient_name,
-                patient_birth,
+                patient_birth ? patient_birth.split('T')[0] : null,
                 patient_height || null,
                 patient_weight || null,
                 patient_blood,
                 patient_img || null,
                 patient_memo || null,
-                patient_status || '무위험군', // 기본값을 '무위험군'으로 변경
+                patient_status || '무위험군',
                 guardian_id || null,
                 bed_id || null,
                 id,
             ]
         );
 
-        // 약물 정보 업데이트
         if (medications && Array.isArray(medications)) {
-            // 기존 약물 정보 삭제
             await db.query('DELETE FROM patient_med WHERE patient_id = ?', [id]);
 
-            // 새 약물 정보가 있는 경우에만 추가
             if (medications.length > 0) {
                 const medicationValues = medications.map((med) => [
                     id,
@@ -246,28 +218,19 @@ router.put('/:id', async (req, res) => {
 
                 await db.query(
                     `INSERT INTO patient_med (
-                        patient_id, 
-                        med_name, 
-                        med_dosage, 
-                        med_cycle, 
-                        med_start_dt, 
-                        med_end_dt, 
-                        notes
+                        patient_id, med_name, med_dosage, med_cycle, med_start_dt, med_end_dt, notes
                     ) VALUES ?`,
                     [medicationValues]
                 );
             }
         }
 
-        // 업데이트된 정보 조회
         const [updatedPatient] = await db.query(
             `SELECT 
-                p.*,
-                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age,
-                b.bed_num,
-                r.room_name,
-                g.guardian_tel
-            FROM patient p
+                p.*, 
+                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age, 
+                b.bed_num, r.room_name, g.guardian_tel 
+            FROM patient p 
             LEFT JOIN bed b ON p.bed_id = b.bed_id
             LEFT JOIN room r ON b.room_id = r.room_id
             LEFT JOIN guardian g ON p.guardian_id = g.guardian_id
@@ -287,50 +250,32 @@ router.put('/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Error updating patient:', err);
-        res.status(500).json({
-            code: 1,
-            message: '환자 정보 수정 중 오류가 발생했습니다.',
-            error: err.message,
-        });
+        res.status(500).json({ code: 1, message: '환자 정보 수정 중 오류가 발생했습니다.', error: err.message });
     }
 });
 
-// GET /api/patients/:id - 특정 환자 상세 정보 조회
+// GET /api/patients/:id
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        // 환자 정보 조회 (관련 테이블 조인)
         const [patient] = await db.query(
-            `
-            SELECT 
-                p.*,
-                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age,
-                b.bed_num,
-                r.room_name,
-                g.guardian_tel
+            `SELECT 
+                p.*, 
+                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age, 
+                b.bed_num, r.room_name, g.guardian_tel 
             FROM patient p
             LEFT JOIN bed b ON p.bed_id = b.bed_id
             LEFT JOIN room r ON b.room_id = r.room_id
             LEFT JOIN guardian g ON p.guardian_id = g.guardian_id
-            WHERE p.patient_id = ?
-        `,
+            WHERE p.patient_id = ?`,
             [id]
         );
 
         if (patient.length === 0) {
-            return res.status(404).json({
-                code: 1,
-                message: '환자 정보를 찾을 수 없습니다.',
-            });
+            return res.status(404).json({ code: 1, message: '환자 정보를 찾을 수 없습니다.' });
         }
 
-        // 환자의 약물 정보 조회
-        const [medications] = await db.query(
-            `
-            SELECT * FROM patient_med WHERE patient_id = ?
-        `,
-            [id]
-        );
+        const [medications] = await db.query('SELECT * FROM patient_med WHERE patient_id = ?', [id]);
 
         res.json({
             code: 0,
@@ -341,11 +286,7 @@ router.get('/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Error fetching patient:', err);
-        res.status(500).json({
-            code: 1,
-            message: '서버 오류가 발생했습니다.',
-            error: err.message,
-        });
+        res.status(500).json({ code: 1, message: '서버 오류가 발생했습니다.', error: err.message });
     }
 });
 

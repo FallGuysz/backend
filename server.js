@@ -17,9 +17,24 @@ const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) =
         console.error('Error opening database:', err);
     } else {
         console.log('Connected to SQLite database');
-        createTables();
     }
 });
+
+// 라우터 설정
+const patientsRouter = require('./routes/patients');
+const roomsRouter = require('./routes/rooms');
+const floorsRouter = require('./routes/floors');
+const fallIncidentsRouter = require('./routes/fall-incidents');
+const environmentalRouter = require('./routes/environmental');
+const notificationsRouter = require('./routes/notifications');
+
+// API 라우트
+app.use('/api/patients', patientsRouter);
+app.use('/api/rooms', roomsRouter);
+app.use('/api/floors', floorsRouter);
+app.use('/api/fall-incidents', fallIncidentsRouter);
+app.use('/api/environmental', environmentalRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // Start server
 app.listen(PORT, () => {
