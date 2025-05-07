@@ -254,39 +254,37 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// GET /api/patients/:id
+// GET /patients/:id - 환자 상세 정보 조회
 router.get('/:id', async (req, res) => {
-    const { id } = req.params;
     try {
-        const [patient] = await db.query(
-            `SELECT 
-                p.*, 
-                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age, 
-                b.bed_num, r.room_name, g.guardian_tel 
+        const [rows] = await db.query(
+            `
+            SELECT 
+                p.*,
+                TIMESTAMPDIFF(YEAR, p.patient_birth, CURDATE()) as age,
+                b.bed_num,
+                r.room_name,
+                g.guardian_tel
             FROM patient p
             LEFT JOIN bed b ON p.bed_id = b.bed_id
             LEFT JOIN room r ON b.room_id = r.room_id
             LEFT JOIN guardian g ON p.guardian_id = g.guardian_id
-            WHERE p.patient_id = ?`,
-            [id]
+            WHERE p.patient_id = ?
+        `,
+            [req.params.id]
         );
 
-        if (patient.length === 0) {
+        if (!rows || rows.length === 0) {
             return res.status(404).json({ code: 1, message: '환자 정보를 찾을 수 없습니다.' });
         }
 
-        const [medications] = await db.query('SELECT * FROM patient_med WHERE patient_id = ?', [id]);
-
         res.json({
             code: 0,
-            data: {
-                ...patient[0],
-                medications,
-            },
+            data: rows[0],
         });
     } catch (err) {
-        console.error('Error fetching patient:', err);
-        res.status(500).json({ code: 1, message: '서버 오류가 발생했습니다.', error: err.message });
+        console.error('Error fetching patient detail:', err);
+        res.status(500).json({ code: 1, message: '환자 정보 조회 실패', error: err });
     }
 });
 

@@ -16,13 +16,14 @@ const weatherRouter = require('./routes/weather'); // 날씨 관련 API 라우�
 const alertsRouter = require('./routes/alerts'); // 알림 관련 API 라우터 추가
 const notificationsRouter = require('./routes/notifications'); // 추가
 const firebaseConfigRouter = require('./routes/firebase-config');
+const floorsRouter = require('./routes/floors'); // 층 정보 관련 API 라우터 추가
 
 var app = express();
 
 // CORS 설정
 app.use(
     cors({
-        origin: 'http://localhost:5000', // 프론트엔드 개발 서버 주소
+        origin: '*', // 모든 출처에서의 접근 허용
         credentials: true,
     })
 );
@@ -42,15 +43,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-app.use('/api/patients', patientsRouter);
-app.use('/api/rooms', roomsRouter); // 병실 관련 API 라우터 추가
-app.use('/api/fall-incidents', fallRouter); // 낙상 관련 API 라우터 추가
-app.use('/api/environmental', environmentalRouter); // 환경 관련 API 라우터 추가
-app.use('/api/weather', weatherRouter); // 날씨 관련 API 라우터 추가
+app.use('/patients', patientsRouter);
+app.use('/rooms', roomsRouter); // 병실 관련 API 라우터 추가
+app.use('/fall-incidents', fallRouter); // 낙상 관련 API 라우터 추가
+app.use('/environmental', environmentalRouter); // 환경 관련 API 라우터 추가
+app.use('/weather', weatherRouter); // 날씨 관련 API 라우터 추가
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // 정적 파일 서빙 설정 추가
-app.use('/api/alerts', alertsRouter); // 알림 관련 API 라우터 추가
-app.use('/api/notifications', notificationsRouter); // 알림 관련 API 라우터 추가
-app.use('/api/firebase', firebaseConfigRouter);
+app.use('/alerts', alertsRouter); // 알림 관련 API 라우터 추가
+app.use('/notifications', notificationsRouter); // 알림 관련 API 라우터 추가
+app.use('/firebase', firebaseConfigRouter);
+app.use('/floors', floorsRouter); // 층 정보 관련 API 라우터 추가
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

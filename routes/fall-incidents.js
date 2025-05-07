@@ -6,13 +6,13 @@ const admin = require('firebase-admin');
 
 // 낙상 사고 자동 알림 관리자 클래스
 class AccidentManager {
-    constructor() {
-        this.pollingInterval = 60000; // 60초(1분)마다 확인 (10000에서 60000으로 변경)
-        this.isPolling = false;
-        this.lastCheckTime = new Date(new Date().getTime() - 60 * 60 * 1000); // 1시간 전부터 시작
-        console.log('AccidentManager 초기화: 체크 시간 =', this.lastCheckTime);
-        this.startPolling();
-    }
+    // constructor() {
+    //     // this.pollingInterval = 60000; // 60초(1분)마다 확인 (10000에서 60000으로 변경)
+    //     this.isPolling = false;
+    //     this.lastCheckTime = new Date(new Date().getTime() - 60 * 60 * 1000); // 1시간 전부터 시작
+    //     console.log('AccidentManager 초기화: 체크 시간 =', this.lastCheckTime);
+    //     this.startPolling();
+    // }
 
     // 폴링 시작
     startPolling() {
@@ -230,6 +230,8 @@ router.get('/', async (req, res) => {
                 p.patient_name,
                 a.accident_dt as accident_date,
                 a.accident_YN,
+                a.accident_chYN,
+                a.accident_chDT,
                 b.bed_num,
                 r.room_name
             FROM accident a
@@ -559,6 +561,36 @@ router.get('/test-notification', async (req, res) => {
             message: '알림 전송 실패',
             error: error.message,
             errorCode: error.code || 'UNKNOWN',
+        });
+    }
+});
+
+router.put('/:id/confirm', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const [result] = await db.query(
+            'UPDATE accident SET accident_chYN = ?, accident_chDT = ? WHERE accident_id = ?',
+            ['Y', new Date(), id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({
+                code: 1,
+                message: '해당 알림을 찾을 수 없습니다.',
+            });
+        }
+
+        res.json({
+            code: 0,
+            message: '알림이 확인되었습니다.',
+        });
+    } catch (err) {
+        console.error('Error confirming alert:', err);
+        res.status(500).json({
+            code: 1,
+            message: '알림 확인 처리 중 오류가 발생했습니다.',
+            error: err.message,
         });
     }
 });
