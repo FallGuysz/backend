@@ -20,13 +20,21 @@ const floorsRouter = require('./routes/floors'); // 층 정보 관련 API 라우
 
 var app = express();
 
-// CORS 설정
+// CORS 설정 업데이트
 app.use(
     cors({
-        origin: '*', // 모든 출처에서의 접근 허용
+        origin: ['http://localhost:5000', 'http://localhost:3000', '*'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
         credentials: true,
     })
 );
+
+// 디버깅을 위한 미들웨어
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
 
 //db connect
 const db = require('./database/db_connect');
