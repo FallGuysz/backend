@@ -36,6 +36,30 @@ app.use('/api/fall-incidents', fallIncidentsRouter);
 app.use('/api/environmental', environmentalRouter);
 app.use('/api/notifications', notificationsRouter);
 
+// Production mode: Serve static files and handle SPA routing
+if (process.env.NODE_ENV === 'production') {
+    // Serve static files from the frontend build directory
+    app.use(express.static(path.join(__dirname, '../front/dist')));
+
+    // Handle SPA routing - send all requests to index.html
+    app.get('*', (req, res) => {
+        // Only handle non-API routes for SPA
+        if (!req.path.startsWith('/api/')) {
+            res.sendFile(path.join(__dirname, '../front/dist/index.html'));
+        }
+    });
+} else {
+    // Development mode: Handle SPA routing by forwarding to the frontend dev server
+    app.get('*', (req, res, next) => {
+        if (!req.path.startsWith('/api/')) {
+            // Forward to frontend dev server
+            res.redirect(`http://localhost:5000${req.originalUrl}`);
+        } else {
+            next();
+        }
+    });
+}
+
 // Start server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
