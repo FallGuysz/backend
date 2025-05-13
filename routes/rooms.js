@@ -84,4 +84,24 @@ router.get('/:roomname', async (req, res) => {
     }
 });
 
+// PUT /api/rooms/:id/env - 병실 온습도 업데이트용
+router.put('/:id/env', async (req, res) => {
+    const room_id = req.params.id;
+    const { room_temp, room_humi, updater_id } = req.body;
+
+    try {
+        await db.query(
+            `UPDATE room
+             SET room_temp = ?, room_humi = ?, room_Upte_id = ?, room_upte_dt = CURRENT_TIMESTAMP
+             WHERE room_id = ?`,
+            [room_temp, room_humi, updater_id, room_id]
+        );
+
+        res.json({ code: 0, message: '병실 환경정보 업데이트 완료' });
+    } catch (err) {
+        console.error('Error updating room env:', err);
+        res.status(500).json({ code: 1, message: '업데이트 실패', error: err.message });
+    }
+});
+
 module.exports = router;
