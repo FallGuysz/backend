@@ -28,13 +28,13 @@ const fallIncidentsRouter = require('./routes/fall-incidents');
 const environmentalRouter = require('./routes/environmental');
 const notificationsRouter = require('./routes/notifications');
 
-// API 라우트
-app.use('/api/patients', patientsRouter);
-app.use('/api/rooms', roomsRouter);
-app.use('/api/floors', floorsRouter);
-app.use('/api/fall-incidents', fallIncidentsRouter);
-app.use('/api/environmental', environmentalRouter);
-app.use('/api/notifications', notificationsRouter);
+// API 라우트 - /api 프리픽스 제거
+app.use('/patients', patientsRouter);
+app.use('/rooms', roomsRouter);
+app.use('/floors', floorsRouter);
+app.use('/fall-incidents', fallIncidentsRouter);
+app.use('/environmental', environmentalRouter);
+app.use('/notifications', notificationsRouter);
 
 // Production mode: Serve static files and handle SPA routing
 if (process.env.NODE_ENV === 'production') {
@@ -43,15 +43,30 @@ if (process.env.NODE_ENV === 'production') {
 
     // Handle SPA routing - send all requests to index.html
     app.get('*', (req, res) => {
-        // Only handle non-API routes for SPA
-        if (!req.path.startsWith('/api/')) {
+        // Only handle non-API routes for SPA - API 프리픽스 제거
+        if (
+            !req.path.startsWith('/patients') &&
+            !req.path.startsWith('/rooms') &&
+            !req.path.startsWith('/floors') &&
+            !req.path.startsWith('/fall-incidents') &&
+            !req.path.startsWith('/environmental') &&
+            !req.path.startsWith('/notifications')
+        ) {
             res.sendFile(path.join(__dirname, '../front/dist/index.html'));
         }
     });
 } else {
     // Development mode: Handle SPA routing by forwarding to the frontend dev server
     app.get('*', (req, res, next) => {
-        if (!req.path.startsWith('/api/')) {
+        // API 프리픽스 제거로 인한 조건문 변경
+        if (
+            !req.path.startsWith('/patients') &&
+            !req.path.startsWith('/rooms') &&
+            !req.path.startsWith('/floors') &&
+            !req.path.startsWith('/fall-incidents') &&
+            !req.path.startsWith('/environmental') &&
+            !req.path.startsWith('/notifications')
+        ) {
             // Forward to frontend dev server
             res.redirect(`http://localhost:5000${req.originalUrl}`);
         } else {
