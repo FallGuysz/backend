@@ -79,6 +79,7 @@ router.post('/login', async (req, res) => {
             user_id: user[0].user_id,
             user_email: user[0].user_email,
             user_role: user[0].user_role,
+            user_name: user[0].user_name,
         });
     } catch (error) {
         console.error('로그인 오류:', error);
