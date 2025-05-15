@@ -74,6 +74,9 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
             patient_status,
             guardian_id,
             bed_id,
+            patient_sex,
+            patient_in,
+            patient_out,
         } = req.body;
 
         // 업로드된 파일이 있으면 파일 경로 저장, 없으면 null
@@ -95,8 +98,11 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
                 patient_memo,
                 patient_status,
                 guardian_id,
-                bed_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                bed_id,
+                patient_sex,
+                patient_in,
+                patient_out
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 patient_name,
                 patient_birth,
@@ -108,6 +114,9 @@ router.post('/', upload.single('patient_img'), async (req, res) => {
                 patient_status || '무위험군',
                 guardian_id || null,
                 bed_id || null,
+                patient_sex || null,
+                patient_in || null,
+                patient_out || null,
             ]
         );
 
